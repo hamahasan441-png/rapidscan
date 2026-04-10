@@ -240,7 +240,8 @@ spinner = Spinner()
 # These checks use Python's standard library instead of external tools.
 
 def _get_response(target, path="/", method="GET", extra_headers=None):
-    """Make an HTTP/HTTPS request and return (status, headers_dict, body) or None."""
+    """Make an HTTP/HTTPS request and return (status, headers_dict, body) or None.
+    Note: headers_dict uses lowercased keys. For Set-Cookie, all values are joined with '\\n'."""
     for scheme in ["https", "http"]:
         try:
             if scheme == "https":
@@ -256,7 +257,14 @@ def _get_response(target, path="/", method="GET", extra_headers=None):
             conn.request(method, path, headers=hdrs)
             resp = conn.getresponse()
             body = resp.read(16384).decode("utf-8", errors="replace")
-            headers = {k.lower(): v for k, v in resp.getheaders()}
+            # Build headers dict; for multi-value headers (Set-Cookie), join with newline
+            headers = {}
+            for k, v in resp.getheaders():
+                k_lower = k.lower()
+                if k_lower in headers:
+                    headers[k_lower] = headers[k_lower] + "\n" + v
+                else:
+                    headers[k_lower] = v
             status = resp.status
             conn.close()
             return status, headers, body
@@ -303,7 +311,8 @@ def int_check_cookie_flags(target):
     if not set_cookie:
         output.append("No cookies set by the server.")
         return "\n".join(output)
-    cookies = set_cookie.split(",")
+    # Each Set-Cookie header is joined by newline in _get_response
+    cookies = set_cookie.split("\n")
     found_insecure = False
     for cookie in cookies:
         cookie_lower = cookie.lower().strip()
@@ -384,13 +393,13 @@ def int_check_ssl_cert(target):
     output = ["=== SSL/TLS Certificate Check ==="]
     try:
         ctx = ssl.create_default_context()
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
         conn = ctx.wrap_socket(socket.socket(socket.AF_INET), server_hostname=target)
         conn.settimeout(10)
         conn.connect((target, 443))
         cert = conn.getpeercert()
         conn.close()
         # Check expiry
-        import datetime
         not_after = ssl.cert_time_to_seconds(cert["notAfter"])
         not_before = ssl.cert_time_to_seconds(cert["notBefore"])
         now = time.time()
@@ -519,14 +528,16 @@ def int_check_clickjack(target):
 def int_check_open_redirect(target):
     """Check for open redirect vulnerabilities."""
     output = ["=== Open Redirect Check ==="]
+    # Use a unique canary domain to avoid substring false positives
+    canary_domain = "rscn-test-" + str(random.randint(10000, 99999)) + ".example.net"
     test_paths = [
-        "/?redirect=https://evil.com",
-        "/?url=https://evil.com",
-        "/?next=https://evil.com",
-        "/?return=https://evil.com",
-        "/?dest=https://evil.com",
-        "/redirect?url=https://evil.com",
-        "/?returnUrl=https://evil.com",
+        "/?redirect=https://" + canary_domain,
+        "/?url=https://" + canary_domain,
+        "/?next=https://" + canary_domain,
+        "/?return=https://" + canary_domain,
+        "/?dest=https://" + canary_domain,
+        "/redirect?url=https://" + canary_domain,
+        "/?returnUrl=https://" + canary_domain,
     ]
     found_redirect = False
     for path in test_paths:
@@ -535,7 +546,8 @@ def int_check_open_redirect(target):
             continue
         status, headers, body = result
         location = headers.get("location", "")
-        if status in (301, 302, 303, 307, 308) and "evil.com" in location:
+        # Check that the canary domain appears in the redirect Location header
+        if status in (301, 302, 303, 307, 308) and canary_domain in location:
             output.append("[REDIRECT] {} -> {}".format(path, location))
             found_redirect = True
     if found_redirect:
@@ -548,7 +560,7 @@ def int_check_info_disclosure(target):
     """Check for information disclosure in error pages."""
     output = ["=== Information Disclosure Check ==="]
     error_paths = [
-        "/this-page-does-not-exist-" + str(random.randint(10000,99999)),
+        "/this-page-does-not-exist-" + str(random.randint(10000, 99999)),
         "/%00",
         "/web.config",
         "/.env",
