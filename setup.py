@@ -11,7 +11,7 @@ README = (HERE / "README.md").read_text()
 
 setup(
     name                =   "rapidscan",
-    version             =   '1.3',
+    version             =   '1.4',
     description         =   "The Multi-Tool Web Vulnerability Scanner.",
     long_description    =   README,
     long_description_content_type = "text/markdown",

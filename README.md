@@ -4,8 +4,8 @@
 [![GitHub stars](https://img.shields.io/github/stars/skavngr/rapidscan.svg?color=%23ff3300)](https://github.com/skavngr/rapidscan/stargazers)
 [![GitHub license](https://img.shields.io/github/license/skavngr/rapidscan.svg?color=%230000ff)](https://github.com/skavngr/rapidscan/blob/master/LICENSE)
 
-# :red_square: RapidScan v1.3 - _The Multi-Tool Web Vulnerability Scanner_
-_**RapidScan has been ported to Python3 i.e. v1.3**. The Python2.7 codebase is available on v1.1 releases section. Download and use it if you still haven't upgraded to Python 3. Kindly note that the v1.1 (Python2.7) will not be enhanced further._
+# :red_square: RapidScan v1.4 - _The Multi-Tool Web Vulnerability Scanner_
+_**RapidScan has been ported to Python3 i.e. v1.4**. The Python2.7 codebase is available on v1.1 releases section. Download and use it if you still haven't upgraded to Python 3. Kindly note that the v1.1 (Python2.7) will not be enhanced further._
 
 ## Evolution:
 > It is quite a fuss for a pentester to perform _**binge-tool-scanning**_ (_running security scanning tools one after the other_) sans automation. Unless you are a pro at automating stuff, it is a herculean task to perform binge-scan for each and every engagement. The ultimate goal of this program is to solve this problem through automation; viz. **running multiple scanning tools to discover vulnerabilities, effectively judge false-positives, collectively correlate results** and **saves precious time**; all these under one roof.<p>Enter **RapidScan**.
@@ -14,6 +14,7 @@ _**RapidScan has been ported to Python3 i.e. v1.3**. The Python2.7 codebase is a
 - **one-step installation**.
 - **executes a multitude of security scanning tools**, does other **custom coded checks** and **prints the results spontaneously**.
 - some of the tools include `nmap, dnsrecon, wafw00f, nuclei, sslyze, fierce, lbd, theharvester, amass, nikto, subfinder, gobuster` etc executes under one entity.
+- **10 built-in Python checks** that require **zero external dependencies** — security headers, cookie flags, CORS, SSL certs, clickjacking, open redirects and more.
 - saves a lot of time, **indeed a lot time!**.
 - **checks for same vulnerabilities with multiple tools** to help you **zero-in on false positives** effectively.
 - **extremely light-weight and not process intensive.**
@@ -29,7 +30,7 @@ _**RapidScan has been ported to Python3 i.e. v1.3**. The Python2.7 codebase is a
 
 ---
 ### FYI:
-- _program is still under development, **works** and currently supports **84** vulnerability tests._
+- _program is still under development, **works** and currently supports **93** vulnerability tests._
 - _parallel processing is not yet implemented, may be coded as more tests gets introduced._
 
 ## Vulnerability Checks
@@ -47,6 +48,7 @@ _**RapidScan has been ported to Python3 i.e. v1.3**. The Python2.7 codebase is a
 - :heavy_check_mark: Exposed Tokens and Credentials Detection.
 - :heavy_check_mark: Technology Fingerprinting with Nuclei.
 - :heavy_check_mark: Login Panel and Dashboard Detection.
+- :heavy_check_mark: **Internal Python Checks** — HTTP Security Headers, Cookie Security, CORS Misconfiguration, Dangerous HTTP Methods, SSL Certificate Validation, HTTPS Redirect, Server Banner Disclosure, Clickjacking, Open Redirect, Information Disclosure.
 - & more coming up...
 
 ## Requirements

@@ -6,7 +6,7 @@
 #                                  /
 #
 # Author     : Shankar Narayana Damodaran
-# Tool       : RapidScan v1.3
+# Tool       : RapidScan v1.4
 # Usage      : python3 rapidscan.py example.com
 # Description: This scanner automates the process of security scanning by using a
 #              multitude of available linux security tools and some custom scripts.
@@ -23,6 +23,9 @@ import threading
 import re
 import random
 from urllib.parse import urlsplit
+import http.client
+import ssl
+import socket
 
 
 CURSOR_UP_ONE = '\x1b[1A' 
@@ -64,13 +67,11 @@ def url_maker(url):
     return host
 
 def check_internet():
-    os.system('ping -c1 github.com > rs_net 2>&1')
-    if "0% packet loss" in open('rs_net').read():
-        val = 1
-    else:
-        val = 0
-    os.system('rm rs_net > /dev/null 2>&1')
-    return val
+    try:
+        socket.create_connection(("github.com", 443), timeout=5)
+        return 1
+    except OSError:
+        return 0
 
 
 # Initializing the color module class
@@ -235,7 +236,365 @@ spinner = Spinner()
 
 
 
-# Scanners that will be used and filename rotation (default: enabled (1))
+# ==================== Internal Python-Based Security Checks ====================
+# These checks use Python's standard library instead of external tools.
+
+def _get_response(target, path="/", method="GET", extra_headers=None):
+    """Make an HTTP/HTTPS request and return (status, headers_dict, body) or None."""
+    for scheme in ["https", "http"]:
+        try:
+            if scheme == "https":
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+                conn = http.client.HTTPSConnection(target, 443, timeout=10, context=ctx)
+            else:
+                conn = http.client.HTTPConnection(target, 80, timeout=10)
+            hdrs = {"User-Agent": "Mozilla/5.0 (RapidScan Internal Scanner)"}
+            if extra_headers:
+                hdrs.update(extra_headers)
+            conn.request(method, path, headers=hdrs)
+            resp = conn.getresponse()
+            body = resp.read(16384).decode("utf-8", errors="replace")
+            headers = {k.lower(): v for k, v in resp.getheaders()}
+            status = resp.status
+            conn.close()
+            return status, headers, body
+        except Exception:
+            continue
+    return None
+
+def int_check_security_headers(target):
+    """Check for missing HTTP security headers."""
+    result = _get_response(target)
+    if result is None:
+        return "Connection refused or timed out"
+    status, headers, body = result
+    output = ["=== HTTP Security Headers Check ==="]
+    critical_headers = {
+        "content-security-policy": "Content-Security-Policy",
+        "x-content-type-options": "X-Content-Type-Options",
+        "x-frame-options": "X-Frame-Options",
+        "strict-transport-security": "Strict-Transport-Security",
+        "permissions-policy": "Permissions-Policy",
+        "referrer-policy": "Referrer-Policy",
+    }
+    found_missing = False
+    for hdr_key, hdr_name in critical_headers.items():
+        if hdr_key in headers:
+            output.append("[PRESENT] {}: {}".format(hdr_name, headers[hdr_key]))
+        else:
+            output.append("[MISSING] {}".format(hdr_name))
+            found_missing = True
+    if found_missing:
+        output.append("\nMISSING: Critical security headers are not present.")
+    else:
+        output.append("\nAll critical security headers are present.")
+    return "\n".join(output)
+
+def int_check_cookie_flags(target):
+    """Check for insecure cookie attributes."""
+    result = _get_response(target)
+    if result is None:
+        return "Connection refused or timed out"
+    status, headers, body = result
+    output = ["=== Cookie Security Check ==="]
+    set_cookie = headers.get("set-cookie", "")
+    if not set_cookie:
+        output.append("No cookies set by the server.")
+        return "\n".join(output)
+    cookies = set_cookie.split(",")
+    found_insecure = False
+    for cookie in cookies:
+        cookie_lower = cookie.lower().strip()
+        cookie_name = cookie.strip().split("=")[0] if "=" in cookie else cookie.strip()
+        issues = []
+        if "httponly" not in cookie_lower:
+            issues.append("missing HttpOnly")
+        if "secure" not in cookie_lower:
+            issues.append("missing Secure")
+        if "samesite" not in cookie_lower:
+            issues.append("missing SameSite")
+        if issues:
+            found_insecure = True
+            output.append("[INSECURE] Cookie '{}': {}".format(cookie_name, ", ".join(issues)))
+        else:
+            output.append("[OK] Cookie '{}': all flags present".format(cookie_name))
+    if found_insecure:
+        output.append("\nINSECURE: Some cookies have insecure attributes.")
+    return "\n".join(output)
+
+def int_check_cors(target):
+    """Check for CORS misconfiguration."""
+    output = ["=== CORS Misconfiguration Check ==="]
+    test_origins = ["https://evil.com", "null", "https://" + target]
+    found_misconfig = False
+    for origin in test_origins:
+        result = _get_response(target, extra_headers={"Origin": origin})
+        if result is None:
+            continue
+        status, headers, body = result
+        acao = headers.get("access-control-allow-origin", "")
+        acac = headers.get("access-control-allow-credentials", "")
+        if acao == "*":
+            output.append("[WARN] Wildcard Access-Control-Allow-Origin: *")
+            found_misconfig = True
+        elif acao == origin and origin != "https://" + target:
+            output.append("[WARN] Origin '{}' is reflected in Access-Control-Allow-Origin".format(origin))
+            if acac.lower() == "true":
+                output.append("[CRITICAL] Credentials allowed with reflected origin: {}".format(origin))
+            found_misconfig = True
+    if found_misconfig:
+        output.append("\nMISCONFIGURED: CORS policy is overly permissive.")
+    else:
+        output.append("\nCORS policy appears properly configured.")
+    return "\n".join(output)
+
+def int_check_http_methods(target):
+    """Check for dangerous HTTP methods."""
+    output = ["=== HTTP Methods Check ==="]
+    dangerous_methods = ["TRACE", "PUT", "DELETE"]
+    found_dangerous = False
+    # First try OPTIONS to see what's allowed
+    result = _get_response(target, method="OPTIONS")
+    if result:
+        status, headers, body = result
+        allow = headers.get("allow", "")
+        if allow:
+            output.append("Allowed methods (via OPTIONS): {}".format(allow))
+            for method in dangerous_methods:
+                if method in allow.upper():
+                    output.append("[DANGEROUS] {} method is allowed".format(method))
+                    found_dangerous = True
+    # Try TRACE directly
+    result = _get_response(target, method="TRACE")
+    if result:
+        status, headers, body = result
+        if status == 200 and "TRACE" in body.upper():
+            output.append("[DANGEROUS] TRACE method returns request body (Cross-Site Tracing risk)")
+            found_dangerous = True
+    if found_dangerous:
+        output.append("\nDANGEROUS: Insecure HTTP methods are enabled.")
+    else:
+        output.append("\nNo dangerous HTTP methods detected.")
+    return "\n".join(output)
+
+def int_check_ssl_cert(target):
+    """Check SSL/TLS certificate validity, expiry and strength."""
+    output = ["=== SSL/TLS Certificate Check ==="]
+    try:
+        ctx = ssl.create_default_context()
+        conn = ctx.wrap_socket(socket.socket(socket.AF_INET), server_hostname=target)
+        conn.settimeout(10)
+        conn.connect((target, 443))
+        cert = conn.getpeercert()
+        conn.close()
+        # Check expiry
+        import datetime
+        not_after = ssl.cert_time_to_seconds(cert["notAfter"])
+        not_before = ssl.cert_time_to_seconds(cert["notBefore"])
+        now = time.time()
+        days_left = (not_after - now) / 86400
+        output.append("Subject: {}".format(dict(x[0] for x in cert.get("subject", ())).get("commonName", "N/A")))
+        output.append("Issuer: {}".format(dict(x[0] for x in cert.get("issuer", ())).get("organizationName", "N/A")))
+        output.append("Not Before: {}".format(cert.get("notBefore", "N/A")))
+        output.append("Not After: {}".format(cert.get("notAfter", "N/A")))
+        output.append("Days until expiry: {:.0f}".format(days_left))
+        found_issue = False
+        if days_left < 0:
+            output.append("[ISSUE] Certificate has EXPIRED!")
+            found_issue = True
+        elif days_left < 30:
+            output.append("[ISSUE] Certificate expires in less than 30 days!")
+            found_issue = True
+        # Check if self-signed
+        subject = dict(x[0] for x in cert.get("subject", ()))
+        issuer = dict(x[0] for x in cert.get("issuer", ()))
+        if subject == issuer:
+            output.append("[ISSUE] Certificate appears to be self-signed!")
+            found_issue = True
+        if found_issue:
+            output.append("\nISSUE: SSL/TLS certificate problems detected.")
+        else:
+            output.append("\nSSL/TLS certificate appears valid.")
+    except ssl.SSLCertVerificationError as e:
+        output.append("[ISSUE] SSL Certificate verification failed: {}".format(str(e)))
+        output.append("\nISSUE: SSL/TLS certificate problems detected.")
+    except ssl.SSLError as e:
+        output.append("[ISSUE] SSL Error: {}".format(str(e)))
+        output.append("\nISSUE: SSL/TLS certificate problems detected.")
+    except socket.timeout:
+        output.append("Connection timed out")
+    except ConnectionRefusedError:
+        output.append("Connection refused - port 443 not open")
+    except Exception as e:
+        output.append("Error: {}".format(str(e)))
+    return "\n".join(output)
+
+def int_check_https_redirect(target):
+    """Check if HTTP properly redirects to HTTPS."""
+    output = ["=== HTTPS Redirect Check ==="]
+    try:
+        conn = http.client.HTTPConnection(target, 80, timeout=10)
+        conn.request("GET", "/", headers={"User-Agent": "Mozilla/5.0 (RapidScan)"})
+        resp = conn.getresponse()
+        status = resp.status
+        location = dict(resp.getheaders()).get("Location", dict(resp.getheaders()).get("location", ""))
+        conn.close()
+        output.append("HTTP Status: {}".format(status))
+        if status in (301, 302, 307, 308) and location.startswith("https://"):
+            output.append("[OK] HTTP redirects to HTTPS: {}".format(location))
+            output.append("HTTPS redirect is properly configured.")
+        elif status in (301, 302, 307, 308):
+            output.append("[WARN] HTTP redirects but NOT to HTTPS: {}".format(location))
+            output.append("\nNO_REDIRECT: HTTP does not redirect to HTTPS.")
+        else:
+            output.append("[WARN] HTTP does not redirect (status: {})".format(status))
+            output.append("\nNO_REDIRECT: HTTP does not redirect to HTTPS.")
+    except Exception as e:
+        output.append("Connection refused or timed out: {}".format(str(e)))
+    return "\n".join(output)
+
+def int_check_server_banner(target):
+    """Check for server version disclosure in HTTP headers."""
+    result = _get_response(target)
+    if result is None:
+        return "Connection refused or timed out"
+    status, headers, body = result
+    output = ["=== Server Banner Check ==="]
+    found_disclosure = False
+    # Check Server header
+    server = headers.get("server", "")
+    if server:
+        output.append("Server header: {}".format(server))
+        # Check if version info is present (e.g., Apache/2.4.41, nginx/1.18.0)
+        if re.search(r'[\d]+\.[\d]+', server):
+            output.append("[DISCLOSED] Server version information is exposed: {}".format(server))
+            found_disclosure = True
+    # Check X-Powered-By
+    powered_by = headers.get("x-powered-by", "")
+    if powered_by:
+        output.append("[DISCLOSED] X-Powered-By: {}".format(powered_by))
+        found_disclosure = True
+    # Check X-AspNet-Version
+    aspnet_ver = headers.get("x-aspnet-version", "")
+    if aspnet_ver:
+        output.append("[DISCLOSED] X-AspNet-Version: {}".format(aspnet_ver))
+        found_disclosure = True
+    # Check X-AspNetMvc-Version
+    mvc_ver = headers.get("x-aspnetmvc-version", "")
+    if mvc_ver:
+        output.append("[DISCLOSED] X-AspNetMvc-Version: {}".format(mvc_ver))
+        found_disclosure = True
+    if found_disclosure:
+        output.append("\nDISCLOSED: Server version/technology information is exposed.")
+    else:
+        output.append("\nNo server version disclosure detected.")
+    return "\n".join(output)
+
+def int_check_clickjack(target):
+    """Check for Clickjacking vulnerability."""
+    result = _get_response(target)
+    if result is None:
+        return "Connection refused or timed out"
+    status, headers, body = result
+    output = ["=== Clickjacking Check ==="]
+    xfo = headers.get("x-frame-options", "")
+    csp = headers.get("content-security-policy", "")
+    protected = False
+    if xfo:
+        output.append("X-Frame-Options: {}".format(xfo))
+        if xfo.upper() in ("DENY", "SAMEORIGIN"):
+            protected = True
+    if "frame-ancestors" in csp:
+        output.append("CSP frame-ancestors directive found: {}".format(csp))
+        protected = True
+    if protected:
+        output.append("\nClickjacking protection is in place.")
+    else:
+        output.append("[VULNERABLE] Neither X-Frame-Options nor CSP frame-ancestors is set.")
+        output.append("\nVULNERABLE: Page can be framed by malicious sites (Clickjacking).")
+    return "\n".join(output)
+
+def int_check_open_redirect(target):
+    """Check for open redirect vulnerabilities."""
+    output = ["=== Open Redirect Check ==="]
+    test_paths = [
+        "/?redirect=https://evil.com",
+        "/?url=https://evil.com",
+        "/?next=https://evil.com",
+        "/?return=https://evil.com",
+        "/?dest=https://evil.com",
+        "/redirect?url=https://evil.com",
+        "/?returnUrl=https://evil.com",
+    ]
+    found_redirect = False
+    for path in test_paths:
+        result = _get_response(target, path=path)
+        if result is None:
+            continue
+        status, headers, body = result
+        location = headers.get("location", "")
+        if status in (301, 302, 303, 307, 308) and "evil.com" in location:
+            output.append("[REDIRECT] {} -> {}".format(path, location))
+            found_redirect = True
+    if found_redirect:
+        output.append("\nREDIRECT: Potential open redirect vulnerability detected.")
+    else:
+        output.append("\nNo open redirect vulnerabilities detected.")
+    return "\n".join(output)
+
+def int_check_info_disclosure(target):
+    """Check for information disclosure in error pages."""
+    output = ["=== Information Disclosure Check ==="]
+    error_paths = [
+        "/this-page-does-not-exist-" + str(random.randint(10000,99999)),
+        "/%00",
+        "/web.config",
+        "/.env",
+        "/.git/config",
+        "/server-status",
+        "/server-info",
+    ]
+    disclosure_patterns = [
+        (r"(?i)(stack\s*trace|traceback|exception)", "Stack trace or exception details"),
+        (r"(?i)(mysql|postgresql|oracle|sql\s*server|sqlite).*error", "Database error message"),
+        (r"(?i)(apache|nginx|iis|tomcat|express|django|flask|laravel|rails)[\s/][\d.]+", "Server/framework version"),
+        (r"(?i)(documentroot|server_addr|remote_addr|php_self)", "Server path/variable disclosure"),
+        (r"(?i)(wp-content|wp-includes|xmlrpc\.php)", "WordPress internals exposed"),
+    ]
+    found_disclosure = False
+    for path in error_paths:
+        result = _get_response(target, path=path)
+        if result is None:
+            continue
+        status, headers, body = result
+        for pattern, desc in disclosure_patterns:
+            match = re.search(pattern, body)
+            if match:
+                output.append("[DISCLOSURE] {} at path '{}': matched '{}'".format(desc, path, match.group(0)))
+                found_disclosure = True
+    if found_disclosure:
+        output.append("\nDISCLOSURE: Error pages or sensitive paths leak information.")
+    else:
+        output.append("\nNo significant information disclosure detected.")
+    return "\n".join(output)
+
+# Mapping internal check names to functions
+internal_checks = {
+    "int_check_security_headers": int_check_security_headers,
+    "int_check_cookie_flags": int_check_cookie_flags,
+    "int_check_cors": int_check_cors,
+    "int_check_http_methods": int_check_http_methods,
+    "int_check_ssl_cert": int_check_ssl_cert,
+    "int_check_https_redirect": int_check_https_redirect,
+    "int_check_server_banner": int_check_server_banner,
+    "int_check_clickjack": int_check_clickjack,
+    "int_check_open_redirect": int_check_open_redirect,
+    "int_check_info_disclosure": int_check_info_disclosure,
+}
+
+# ==================== End Internal Checks ====================
 tool_names = [
                 #1
                 ["host","Host - Checks for existence of IPV6 address.","host",1],
@@ -487,7 +846,37 @@ tool_names = [
                 ["nuclei_network","Nuclei - Checks for network-level vulnerabilities.","nuclei",1],
 
                 #84
-                ["nuclei_panels","Nuclei - Detects exposed login panels and dashboards.","nuclei",1]
+                ["nuclei_panels","Nuclei - Detects exposed login panels and dashboards.","nuclei",1],
+
+                #85
+                ["int_security_headers","Internal - Checks for missing HTTP Security Headers (CSP, HSTS, X-Content-Type-Options).","internal",1],
+
+                #86
+                ["int_cookie_flags","Internal - Checks for insecure cookie attributes (HttpOnly, Secure, SameSite).","internal",1],
+
+                #87
+                ["int_cors","Internal - Checks for CORS Misconfiguration.","internal",1],
+
+                #88
+                ["int_http_methods","Internal - Checks for dangerous HTTP methods (TRACE, PUT, DELETE).","internal",1],
+
+                #89
+                ["int_ssl_cert","Internal - Checks SSL/TLS certificate validity, expiry and strength.","internal",1],
+
+                #90
+                ["int_https_redirect","Internal - Checks if HTTP redirects to HTTPS.","internal",1],
+
+                #91
+                ["int_server_banner","Internal - Checks for Server version disclosure in HTTP headers.","internal",1],
+
+                #92
+                ["int_clickjack","Internal - Checks for Clickjacking vulnerability (X-Frame-Options).","internal",1],
+
+                #93
+                ["int_open_redirect","Internal - Checks for open redirect vulnerabilities.","internal",1],
+
+                #94
+                ["int_info_disclosure","Internal - Checks for information disclosure in error pages.","internal",1]
             ]
 
 
@@ -743,7 +1132,37 @@ tool_cmd   = [
                 ["nuclei -u http://", " -tags network -silent -no-color"],
 
                 #84
-                ["nuclei -u http://", " -tags panel,login -silent -no-color"]
+                ["nuclei -u http://", " -tags panel,login -silent -no-color"],
+
+                #85
+                ["int_check_security_headers", ""],
+
+                #86
+                ["int_check_cookie_flags", ""],
+
+                #87
+                ["int_check_cors", ""],
+
+                #88
+                ["int_check_http_methods", ""],
+
+                #89
+                ["int_check_ssl_cert", ""],
+
+                #90
+                ["int_check_https_redirect", ""],
+
+                #91
+                ["int_check_server_banner", ""],
+
+                #92
+                ["int_check_clickjack", ""],
+
+                #93
+                ["int_check_open_redirect", ""],
+
+                #94
+                ["int_check_info_disclosure", ""]
             ]
 
 
@@ -999,7 +1418,37 @@ tool_resp   = [
                 ["Nuclei detected network-level vulnerabilities.","h",30],
 
                 #84
-                ["Nuclei detected exposed login panels or dashboards.","m",25]
+                ["Nuclei detected exposed login panels or dashboards.","m",25],
+
+                #85
+                ["Missing critical HTTP security headers detected.","m",54],
+
+                #86
+                ["Cookies with insecure attributes detected.","m",55],
+
+                #87
+                ["CORS misconfiguration detected. Wildcard or overly permissive origin allowed.","h",56],
+
+                #88
+                ["Dangerous HTTP methods enabled (TRACE/PUT/DELETE).","m",42],
+
+                #89
+                ["SSL/TLS certificate issues found (expiry, weak key, or self-signed).","h",57],
+
+                #90
+                ["HTTP does not redirect to HTTPS. Insecure transport possible.","m",58],
+
+                #91
+                ["Server version information is disclosed in HTTP headers.","l",43],
+
+                #92
+                ["X-Frame-Options header missing. Vulnerable to Clickjacking.","m",59],
+
+                #93
+                ["Potential open redirect vulnerability detected.","m",60],
+
+                #94
+                ["Error pages leak server/framework information.","l",36]
 
 
 
@@ -1261,7 +1710,37 @@ tool_status = [
                 ["] [",0,proc_med," <  5m","nucleinet",["[ERR]","Could not resolve"]],
 
                 #84
-                ["] [",0,proc_med," <  5m","nucleipanels",["[ERR]","Could not resolve"]]
+                ["] [",0,proc_med," <  5m","nucleipanels",["[ERR]","Could not resolve"]],
+
+                #85
+                ["MISSING",0,proc_low," < 10s","intsecheaders",["Connection refused","timed out"]],
+
+                #86
+                ["INSECURE",0,proc_low," < 10s","intcookies",["Connection refused","timed out"]],
+
+                #87
+                ["MISCONFIGURED",0,proc_low," < 15s","intcors",["Connection refused","timed out"]],
+
+                #88
+                ["DANGEROUS",0,proc_low," < 10s","intmethods",["Connection refused","timed out"]],
+
+                #89
+                ["ISSUE",0,proc_low," < 15s","intsslcert",["Connection refused","timed out"]],
+
+                #90
+                ["NO_REDIRECT",0,proc_low," < 10s","inthttpsredir",["Connection refused","timed out"]],
+
+                #91
+                ["DISCLOSED",0,proc_low," < 10s","intbanner",["Connection refused","timed out"]],
+
+                #92
+                ["VULNERABLE",0,proc_low," < 10s","intclickjack",["Connection refused","timed out"]],
+
+                #93
+                ["REDIRECT",0,proc_low," < 15s","intredirect",["Connection refused","timed out"]],
+
+                #94
+                ["DISCLOSURE",0,proc_low," < 15s","intinfodisclosure",["Connection refused","timed out"]]
 
 
 
@@ -1374,12 +1853,26 @@ tools_fix = [
                     [52, "Subdomain takeover occurs when an attacker gains control over a subdomain of a target domain. This typically happens when DNS records (especially CNAMEs) point to services that have been deprovisioned, allowing an attacker to claim those services and serve malicious content under the target's domain.",
                             "Remove dangling DNS records pointing to deprovisioned services. Regularly audit all DNS records and remove entries for services no longer in use. Use monitoring tools to detect abandoned subdomains. More information: https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/10-Test_for_Subdomain_Takeover"],
                     [53, "Exposed tokens, API keys, or credentials allow an attacker to gain unauthorized access to various services, APIs, and internal systems. This could lead to data breaches, service compromise, privilege escalation, or financial loss.",
-                            "Immediately rotate all exposed tokens and credentials. Implement a secrets management solution (e.g., HashiCorp Vault, AWS Secrets Manager). Never hardcode secrets in source code. Use environment variables or secret stores. Review access logs for unauthorized usage. More information: https://owasp.org/www-community/vulnerabilities/Use_of_hard-coded_password"]
+                            "Immediately rotate all exposed tokens and credentials. Implement a secrets management solution (e.g., HashiCorp Vault, AWS Secrets Manager). Never hardcode secrets in source code. Use environment variables or secret stores. Review access logs for unauthorized usage. More information: https://owasp.org/www-community/vulnerabilities/Use_of_hard-coded_password"],
+                    [54, "HTTP security headers provide an additional layer of defense against common web attacks. Missing headers like Content-Security-Policy, Strict-Transport-Security, X-Content-Type-Options, X-Frame-Options, Permissions-Policy and Referrer-Policy leave the application vulnerable to XSS, clickjacking, MIME sniffing and other attacks.",
+                            "Configure your web server to send all recommended security headers. Content-Security-Policy to restrict resource loading, Strict-Transport-Security to enforce HTTPS, X-Content-Type-Options: nosniff to prevent MIME sniffing, and Referrer-Policy to control referrer information. More information: https://owasp.org/www-project-secure-headers/"],
+                    [55, "Cookies without proper security flags are vulnerable to theft and misuse. Missing HttpOnly flag allows JavaScript access (XSS risk), missing Secure flag allows transmission over HTTP (MiTM risk), and missing SameSite attribute enables CSRF attacks.",
+                            "Set HttpOnly flag on all session cookies to prevent JavaScript access. Set the Secure flag to ensure cookies are only sent over HTTPS. Set SameSite=Strict or SameSite=Lax to mitigate CSRF attacks. More information: https://owasp.org/www-community/controls/SecureCookieAttribute"],
+                    [56, "Cross-Origin Resource Sharing (CORS) misconfiguration allows unauthorized domains to make requests to the application. A wildcard (*) origin or reflecting arbitrary origins with credentials enabled can lead to data theft, CSRF, and account takeover.",
+                            "Configure CORS to only allow trusted origins. Never use wildcard (*) with Access-Control-Allow-Credentials. Validate and whitelist specific origins server-side. More information: https://owasp.org/www-community/attacks/CORS_OriginHeaderScrutiny"],
+                    [57, "SSL/TLS certificate issues such as expired certificates, self-signed certificates, or certificates with weak key sizes undermine the trust model of HTTPS. Users may be trained to ignore certificate warnings, making them vulnerable to MiTM attacks.",
+                            "Renew certificates before expiry. Use certificates from trusted Certificate Authorities. Use key sizes of at least 2048 bits for RSA or 256 bits for ECDSA. Implement certificate monitoring and automated renewal (e.g., Let's Encrypt with certbot). More information: https://letsencrypt.org/getting-started/"],
+                    [58, "Without HTTP to HTTPS redirection, users who type the domain directly or follow HTTP links will communicate over unencrypted channels. Attackers on the network can intercept, read, and modify the traffic (MiTM attacks).",
+                            "Configure your web server to redirect all HTTP traffic to HTTPS using a 301 permanent redirect. Enable HSTS (Strict-Transport-Security) header to instruct browsers to always use HTTPS. Consider HSTS preloading for maximum protection. More information: https://https.cio.gov/hsts/"],
+                    [59, "Without X-Frame-Options or CSP frame-ancestors directive, the web page can be embedded in an iframe on a malicious site. This enables Clickjacking attacks where users are tricked into clicking hidden elements, potentially performing unintended actions like changing settings or making purchases.",
+                            "Set X-Frame-Options to DENY or SAMEORIGIN. Alternatively, use Content-Security-Policy with frame-ancestors directive for more granular control. More information: https://owasp.org/www-community/attacks/Clickjacking"],
+                    [60, "Open redirect vulnerabilities allow attackers to craft URLs that redirect users from the trusted domain to malicious sites. This is commonly used in phishing attacks because the URL appears to be from the legitimate domain.",
+                            "Validate and sanitize all redirect URLs server-side. Maintain a whitelist of allowed redirect destinations. Avoid using user-supplied input directly in redirect targets. Use relative URLs for internal redirects. More information: https://cheatsheetseries.owasp.org/cheatsheets/Unvalidated_Redirects_and_Forwards_Cheat_Sheet.html"]
             ]
 
 # Tool Set
 tools_precheck = [
-                    ["wapiti"], ["whatweb"], ["nmap"], ["nuclei"], ["host"], ["wget"], ["gobuster"], ["wafw00f"], ["subfinder"], ["davtest"], ["theHarvester"], ["xsser"], ["dnsrecon"],["fierce"], ["dnswalk"], ["whois"], ["sslyze"], ["lbd"], ["dnsenum"], ["nikto"], ["dnsmap"], ["amass"]
+                    ["wapiti"], ["whatweb"], ["nmap"], ["nuclei"], ["host"], ["wget"], ["gobuster"], ["wafw00f"], ["subfinder"], ["davtest"], ["theHarvester"], ["xsser"], ["dnsrecon"],["fierce"], ["dnswalk"], ["whois"], ["sslyze"], ["lbd"], ["dnsenum"], ["nikto"], ["dnsmap"], ["amass"], ["internal"]
                  ]
 
 def get_parser():
@@ -1486,6 +1979,14 @@ elif args_namespace.target:
 
     while (rs_avail_tools < len(tools_precheck)):
         precmd = str(tools_precheck[rs_avail_tools][arg1])
+
+        # Internal checks are always available (Python-based, no external dependency)
+        if precmd == "internal":
+            print("\t"+bcolors.OKBLUE+precmd+bcolors.ENDC+bcolors.OKGREEN+"...available."+bcolors.ENDC)
+            rs_avail_tools = rs_avail_tools + 1
+            clear()
+            continue
+
         try:
             p = subprocess.Popen([precmd], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,shell=True)
             output, err = p.communicate()
@@ -1532,10 +2033,17 @@ elif args_namespace.target:
             print("\n")
         scan_start = time.time()
         temp_file = "/tmp/rapidscan_temp_"+tool_names[tool][arg1]
-        cmd = tool_cmd[tool][arg1]+target+tool_cmd[tool][arg2]+" > "+temp_file+" 2>&1"
 
         try:
-            subprocess.check_output(cmd, shell=True)
+            if tool_names[tool][arg3] == "internal":
+                # Run internal Python-based check directly
+                func_name = tool_cmd[tool][arg1]
+                check_result = internal_checks[func_name](target)
+                with open(temp_file, 'w') as f:
+                    f.write(check_result)
+            else:
+                cmd = tool_cmd[tool][arg1]+target+tool_cmd[tool][arg2]+" > "+temp_file+" 2>&1"
+                subprocess.check_output(cmd, shell=True)
         except KeyboardInterrupt:
             runTest = 0
         except:
