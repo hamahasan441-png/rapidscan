@@ -6,7 +6,7 @@
 #                                  /
 #
 # Author     : Shankar Narayana Damodaran
-# Tool       : RapidScan v1.3
+# Tool       : RapidScan v1.2
 # Usage      : python3 rapidsan.py example.com
 # Description: This scanner automates the process of security scanning by using a
 #              multitude of available linux security tools and some custom scripts.
@@ -132,7 +132,7 @@ def helper():
         print(bcolors.OKBLUE+"Information:"+bcolors.ENDC)
         print("------------")
         print("\t./rapidscan.py example.com: Scans the domain example.com.")
-        print("\t./rapidscan.py example.com --skip nuclei --skip theHarvester: Skip the 'nuclei' and 'theHarvester' tests.")
+        print("\t./rapidscan.py example.com --skip dmitry --skip theHarvester: Skip the 'dmitry' and 'theHarvester' tests.")
         print("\t./rapidscan.py example.com --nospinner: Disable the idle loader/spinner.")
         print("\t./rapidscan.py --update   : Updates the scanner to the latest version.")
         print("\t./rapidscan.py --help     : Displays this help context.")
@@ -253,7 +253,7 @@ tool_names = [
                 ["joom_check", "Joomla Checker - Checks for Joomla Installation.","wget",1],
 
                 #6
-                ["nuclei_robots","Nuclei - Checks for robots.txt & sitemap.xml.","nuclei",1],
+                ["uniscan","Uniscan - Checks for robots.txt & sitemap.xml","uniscan",1],
 
                 #7
                 ["wafw00f","Wafw00f - Checks for Application Firewalls.","wafw00f",1],
@@ -316,37 +316,37 @@ tool_names = [
                 ["lbd","LBD - Checks for DNS/HTTP Load Balancers.","lbd",1],
 
                 #27
-                ["nuclei_misconfig","Nuclei - Checks for common misconfigurations.","nuclei",1],
+                ["golismero_dns_malware","Golismero - Checks if the domain is spoofed or hijacked.","golismero",1],
 
                 #28
-                ["nuclei_cves_critical","Nuclei - Checks for critical severity CVEs.","nuclei",1],
+                ["golismero_heartbleed","Golismero - Checks only for Heartbleed Vulnerability.","golismero",1],
 
                 #29
-                ["nuclei_exposure","Nuclei - Checks for sensitive file and data exposures.","nuclei",1],
+                ["golismero_brute_url_predictables","Golismero - BruteForces for certain files on the Domain.","golismero",1],
 
                 #30
-                ["gobuster_dirs","Gobuster - Brutes Directories on the Domain.","gobuster",1],
+                ["golismero_brute_directories","Golismero - BruteForces for certain directories on the Domain.","golismero",1],
 
                 #31
-                ["nuclei_sqli","Nuclei - Checks for SQL Injection vulnerabilities.","nuclei",1],
+                ["golismero_sqlmap","Golismero - SQLMap [Retrieves only the DB Banner]","golismero",1],
 
                 #32
-                ["nuclei_cves_medium","Nuclei - Checks for medium severity CVEs.","nuclei",1],
+                ["dirb","DirB - Brutes the target for Open Directories.","dirb",1],
 
                 #33
                 ["xsser","XSSer - Checks for Cross-Site Scripting [XSS] Attacks.","xsser",1],
 
                 #34
-                ["nuclei_ssl","Nuclei - Performs SSL/TLS vulnerability checks.","nuclei",1],
+                ["golismero_ssl_scan","Golismero SSL Scans - Performs SSL related Scans.","golismero",1],
 
                 #35
-                ["nuclei_takeover","Nuclei - Checks for subdomain takeover vulnerabilities.","nuclei",1],
+                ["golismero_zone_transfer","Golismero Zone Transfer - Attempts Zone Transfer.","golismero",1],
 
                 #36
-                ["nuclei_cves_high","Nuclei - Checks for high severity CVEs.","nuclei",1],
+                ["golismero_nikto","Golismero Nikto Scans - Uses Nikto Plugin to detect vulnerabilities.","golismero",1],
 
                 #37
-                ["subfinder","Subfinder - Discovers subdomains of the target domain.","subfinder",1],
+                ["golismero_brute_subdomains","Golismero Subdomains Bruter - Brute Forces Subdomain Discovery.","golismero",1],
 
                 #38
                 ["dnsenum_zone_transfer","DNSEnum - Attempts Zone Transfer.","dnsenum",1],
@@ -355,10 +355,10 @@ tool_names = [
                 ["fierce_brute_subdomains","Fierce Subdomains Bruter - Brute Forces Subdomain Discovery.","fierce",1],
 
                 #40
-                ["nuclei_tokens","Nuclei - Checks for exposed tokens and credentials.","nuclei",1],
+                ["dmitry_email","DMitry - Passively Harvests Emails from the Domain.","dmitry",1],
 
                 #41
-                ["subfinder_subdomains","Subfinder - Passively discovers subdomains.","subfinder",1],
+                ["dmitry_subdomains","DMitry - Passively Harvests Subdomains from the Domain.","dmitry",1],
 
                 #42
                 ["nmap_telnet","Nmap [TELNET] - Checks if TELNET service is running.","nmap",1],
@@ -373,22 +373,22 @@ tool_names = [
                 ["webdav","WebDAV - Checks if WEBDAV enabled on Home directory.","davtest",1],
 
                 #46
-                ["nuclei_tech","Nuclei - Fingerprints technologies on the domain.","nuclei",1],
+                ["golismero_finger","Golismero - Does a fingerprint on the Domain.","golismero",1],
 
                 #47
-                ["nuclei_file_exposure","Nuclei - Checks for sensitive file exposures.","nuclei",1],
+                ["uniscan_filebrute","Uniscan - Brutes for Filenames on the Domain.","uniscan",1],
 
                 #48
-                ["nuclei_fuzzing","Nuclei - Fuzzes for hidden endpoints and directories.","nuclei",1],
+                ["uniscan_dirbrute", "Uniscan - Brutes Directories on the Domain.","uniscan",1],
 
                 #49
-                ["nuclei_dos","Nuclei - Checks for Denial of Service vulnerabilities.","nuclei",1],
+                ["uniscan_ministresser", "Uniscan - Stress Tests the Domain.","uniscan",1],
 
                 #50
-                ["nuclei_lfi","Nuclei - Checks for LFI, RFI and RCE vulnerabilities.","nuclei",1],
+                ["uniscan_rfi","Uniscan - Checks for LFI, RFI and RCE.","uniscan",1],
 
                 #51
-                ["nuclei_xss","Nuclei - Checks for XSS, SQLi, BSQLi & Other Checks.","nuclei",1],
+                ["uniscan_xss","Uniscan - Checks for XSS, SQLi, BSQLi & Other Checks.","uniscan",1],
 
                 #52
                 ["nikto_xss","Nikto - Checks for Apache Expect XSS Header.","nikto",1],
@@ -478,16 +478,7 @@ tool_names = [
                 ["whatweb","WhatWeb - Checks for X-XSS Protection Header","whatweb",1],
 
                 #81
-                ["amass","AMass - Brutes Domain for Subdomains","amass",1],
-
-                #82
-                ["nuclei_default","Nuclei - Comprehensive default template scan.","nuclei",1],
-
-                #83
-                ["nuclei_network","Nuclei - Checks for network-level vulnerabilities.","nuclei",1],
-
-                #84
-                ["nuclei_panels","Nuclei - Detects exposed login panels and dashboards.","nuclei",1]
+                ["amass","AMass - Brutes Domain for Subdomains","amass",1]
             ]
 
 
@@ -509,7 +500,7 @@ tool_cmd   = [
                 ["wget -O /tmp/rapidscan_temp_joom_check --tries=1 ","/administrator"],
 
                 #6
-                ["nuclei -u http://", " -tags robots -silent -no-color"],
+                ["uniscan -e -u ",""],
 
                 #7
                 ["wafw00f ",""],
@@ -572,37 +563,37 @@ tool_cmd   = [
                 ["lbd ",""],
 
                 #27
-                ["nuclei -u http://", " -tags misconfig -silent -no-color"],
+                ["golismero -e dns_malware scan ",""],
 
                 #28
-                ["nuclei -u http://", " -tags cve -severity critical -silent -no-color"],
+                ["golismero -e heartbleed scan ",""],
 
                 #29
-                ["nuclei -u http://", " -tags exposure -silent -no-color"],
+                ["golismero -e brute_url_predictables scan ",""],
 
                 #30
-                ["gobuster dir -u http://", " -w /usr/share/wordlists/dirb/common.txt -q --no-error"],
+                ["golismero -e brute_directories scan ",""],
 
                 #31
-                ["nuclei -u http://", " -tags sqli -silent -no-color"],
+                ["golismero -e sqlmap scan ",""],
 
                 #32
-                ["nuclei -u http://", " -tags cve -severity medium -silent -no-color"],
+                ["dirb http://"," -fi"],
 
                 #33
                 ["xsser --all=http://",""],
 
                 #34
-                ["nuclei -u http://", " -tags ssl -silent -no-color"],
+                ["golismero -e sslscan scan ",""],
 
                 #35
-                ["nuclei -u http://", " -tags takeover -silent -no-color"],
+                ["golismero -e zone_transfer scan ",""],
 
                 #36
-                ["nuclei -u http://", " -tags cve -severity high -silent -no-color"],
+                ["golismero -e nikto scan ",""],
 
                 #37
-                ["subfinder -d ", " -silent"],
+                ["golismero -e brute_dns scan ",""],
 
                 #38
                 ["dnsenum ",""],
@@ -611,10 +602,10 @@ tool_cmd   = [
                 ["fierce --domain ",""],
 
                 #40
-                ["nuclei -u http://", " -tags token -silent -no-color"],
+                ["dmitry -e ",""],
 
                 #41
-                ["subfinder -d ", " -silent"],
+                ["dmitry -s ",""],
 
                 #42
                 ["nmap -p23 --open -Pn ",""],
@@ -629,22 +620,22 @@ tool_cmd   = [
                 ["davtest -url http://",""],
 
                 #46
-                ["nuclei -u http://", " -tags tech -silent -no-color"],
+                ["golismero -e fingerprint_web scan ",""],
 
                 #47
-                ["nuclei -u http://", " -tags exposure,file -silent -no-color"],
+                ["uniscan -w -u ",""],
 
                 #48
-                ["nuclei -u http://", " -tags fuzz -silent -no-color"],
+                ["uniscan -q -u ",""],
 
                 #49
-                ["nuclei -u http://", " -tags dos -silent -no-color"],
+                ["uniscan -r -u ",""],
 
                 #50
-                ["nuclei -u http://", " -tags lfi -silent -no-color"],
+                ["uniscan -s -u ",""],
 
                 #51
-                ["nuclei -u http://", " -tags xss -silent -no-color"],
+                ["uniscan -d -u ",""],
 
                 #52
                 ["nikto -Plugins 'apache_expect_xss' -host ",""],
@@ -734,16 +725,7 @@ tool_cmd   = [
                 ["whatweb "," -a 1"],
 
                 #81
-                ["amass enum -d ",""],
-
-                #82
-                ["nuclei -u http://", " -as -silent -no-color"],
-
-                #83
-                ["nuclei -u http://", " -tags network -silent -no-color"],
-
-                #84
-                ["nuclei -u http://", " -tags panel,login -silent -no-color"]
+                ["amass enum -d ",""]
             ]
 
 
@@ -765,7 +747,7 @@ tool_resp   = [
                 ["Joomla Installation Found. Check for vulnerabilities corresponds to that version.","i",5],
 
                 #6
-                ["robots.txt/sitemap.xml exposure detected by Nuclei.","i",6],
+                ["robots.txt/sitemap.xml found. Check those files for any information.","i",6],
 
                 #7
                 ["No Web Application Firewall Detected","m",7],
@@ -828,37 +810,37 @@ tool_resp   = [
                 ["No DNS/HTTP based Load Balancers Found.","l",23],
 
                 #27
-                ["Nuclei detected misconfigurations on the target.","m",30],
+                ["Domain is spoofed/hijacked.","h",24],
 
                 #28
-                ["Nuclei found critical severity CVE vulnerabilities.","c",30],
+                ["HEARTBLEED Vulnerability Found with Golismero.","h",14],
 
                 #29
-                ["Nuclei found sensitive file or data exposures.","m",25],
+                ["Open Files Found with Golismero BruteForce.","m",25],
 
                 #30
-                ["Open Directories Found with Gobuster.","m",26],
+                ["Open Directories Found with Golismero BruteForce.","m",26],
 
                 #31
-                ["Nuclei detected potential SQL Injection vulnerabilities.","h",39],
+                ["DB Banner retrieved with SQLMap.","l",27],
 
                 #32
-                ["Nuclei found medium severity CVE vulnerabilities.","m",30],
+                ["Open Directories Found with DirB.","m",26],
 
                 #33
                 ["XSSer found XSS vulnerabilities.","c",28],
 
                 #34
-                ["Nuclei found SSL/TLS related vulnerabilities.","m",29],
+                ["Found SSL related vulnerabilities with Golismero.","m",29],
 
                 #35
-                ["Nuclei detected potential subdomain takeover.","h",52],
+                ["Zone Transfer Successful with Golismero. Reconfigure DNS immediately.","h",10],
 
                 #36
-                ["Nuclei found high severity CVE vulnerabilities.","h",30],
+                ["Golismero Nikto Plugin found vulnerabilities.","m",30],
 
                 #37
-                ["Found Subdomains with Subfinder.","m",31],
+                ["Found Subdomains with Golismero.","m",31],
 
                 #38
                 ["Zone Transfer Successful using DNSEnum. Reconfigure DNS immediately.","h",10],
@@ -867,10 +849,10 @@ tool_resp   = [
                 ["Found Subdomains with Fierce.","m",31],
 
                 #40
-                ["Nuclei found exposed tokens or credentials.","c",53],
+                ["Email Addresses discovered with DMitry.","l",9],
 
                 #41
-                ["Subdomains discovered with Subfinder.","m",31],
+                ["Subdomains discovered with DMitry.","m",31],
 
                 #42
                 ["Telnet Service Detected.","h",32],
@@ -885,22 +867,22 @@ tool_resp   = [
                 ["WebDAV Enabled.","m",35],
 
                 #46
-                ["Nuclei identified technologies through fingerprinting.","l",36],
+                ["Found some information through Fingerprinting.","l",36],
 
                 #47
-                ["Nuclei detected sensitive file exposures.","m",25],
+                ["Open Files Found with Uniscan.","m",25],
 
                 #48
-                ["Nuclei fuzz scan discovered hidden endpoints.","m",26],
+                ["Open Directories Found with Uniscan.","m",26],
 
                 #49
-                ["Nuclei detected Denial of Service vulnerabilities.","h",37],
+                ["Vulnerable to Stress Tests.","h",37],
 
                 #50
-                ["Nuclei detected possible LFI, RFI or RCE.","h",38],
+                ["Uniscan detected possible LFI, RFI or RCE.","h",38],
 
                 #51
-                ["Nuclei detected possible XSS, SQLi, BSQLi.","h",39],
+                ["Uniscan detected possible XSS, SQLi, BSQLi.","h",39],
 
                 #52
                 ["Apache Expect XSS Header not present.","m",12],
@@ -990,16 +972,7 @@ tool_resp   = [
                 ["X-XSS Protection is not Present","m",12],
 
                 #81
-                ["Found Subdomains with AMass","m",31],
-
-                #82
-                ["Nuclei comprehensive scan found vulnerabilities.","h",30],
-
-                #83
-                ["Nuclei detected network-level vulnerabilities.","h",30],
-
-                #84
-                ["Nuclei detected exposed login panels or dashboards.","m",25]
+                ["Found Subdomains with AMass","m",31]
 
 
 
@@ -1027,7 +1000,7 @@ tool_status = [
                 ["joomla",0,proc_low," < 30s","joomlacheck",["unable to resolve host address","Connection timed out"]],
 
                 #6
-                ["] [",0,proc_low," < 30s","nucleirobot",["[ERR]","Could not resolve"]],
+                ["[+]",0,proc_low," < 40s","robotscheck",["Use of uninitialized value in unpack at"]],
 
                 #7
                 ["No WAF",0,proc_low," < 45s","wafcheck",["appears to be down"]],
@@ -1090,37 +1063,37 @@ tool_status = [
                 ["does NOT use Load-balancing",0,proc_med," <  4m","lbd",["NOT FOUND"]],
 
                 #27
-                ["] [",0,proc_med," <  5m","nucleimisconf",["[ERR]","Could not resolve"]],
+                ["No vulnerabilities found",1,proc_low," < 45s","golism1",["Cannot resolve domain name","No vulnerabilities found"]],
 
                 #28
-                ["] [",0,proc_high," < 10m","nucleicritcve",["[ERR]","Could not resolve"]],
+                ["No vulnerabilities found",1,proc_low," < 40s","golism2",["Cannot resolve domain name","No vulnerabilities found"]],
 
                 #29
-                ["] [",0,proc_med," <  5m","nucleiexposure",["[ERR]","Could not resolve"]],
+                ["No vulnerabilities found",1,proc_low," < 45s","golism3",["Cannot resolve domain name","No vulnerabilities found"]],
 
                 #30
-                ["Status:",0,proc_high," < 35m","gobuster",["Error","FATA"]],
+                ["No vulnerabilities found",1,proc_low," < 40s","golism4",["Cannot resolve domain name","No vulnerabilities found"]],
 
                 #31
-                ["] [",0,proc_med," <  5m","nucleisqli",["[ERR]","Could not resolve"]],
+                ["No vulnerabilities found",1,proc_low," < 45s","golism5",["Cannot resolve domain name","No vulnerabilities found"]],
 
                 #32
-                ["] [",0,proc_med," <  5m","nucleimedcve",["[ERR]","Could not resolve"]],
+                ["FOUND: 0",1,proc_high," < 35m","dirb",["COULDNT RESOLVE HOST","FOUND: 0"]],
 
                 #33
                 ["Could not find any vulnerability!",1,proc_med," <  4m","xsser",["XSSer is not working propertly!","Could not find any vulnerability!"]],
 
                 #34
-                ["] [",0,proc_med," <  3m","nucleissl",["[ERR]","Could not resolve"]],
+                ["Occurrence ID",0,proc_low," < 45s","golism6",["Cannot resolve domain name"]],
 
                 #35
-                ["] [",0,proc_med," <  5m","nucleitakeover",["[ERR]","Could not resolve"]],
+                ["DNS zone transfer successful",0,proc_low," < 30s","golism7",["Cannot resolve domain name"]],
 
                 #36
-                ["] [",0,proc_high," < 10m","nucleihighcve",["[ERR]","Could not resolve"]],
+                ["Nikto found 0 vulnerabilities",1,proc_med," <  4m","golism8",["Cannot resolve domain name","Nikto found 0 vulnerabilities"]],
 
                 #37
-                [".",0,proc_med," <  5m","subfinder",["could not resolve","[ERR]"]],
+                ["Possible subdomain leak",0,proc_high," < 30m","golism9",["Cannot resolve domain name"]],
 
                 #38
                 ["AXFR record query failed:",1,proc_low," < 45s","dnsenumzt",["NS record query failed:","AXFR record query failed","no NS record for"]],
@@ -1129,10 +1102,10 @@ tool_status = [
                 ["Found 0 entries",1,proc_high," < 75m","fierce2",["Found 0 entries","is gimp"]],
 
                 #40
-                ["] [",0,proc_med," <  3m","nucleitokens",["[ERR]","Could not resolve"]],
+                ["Found 0 E-Mail(s)",1,proc_low," < 30s","dmitry1",["Unable to locate Host IP addr","Found 0 E-Mail(s)"]],
 
                 #41
-                [".",0,proc_med," <  5m","subfinder2",["could not resolve","[ERR]"]],
+                ["Found 0 possible subdomain(s)",1,proc_low," < 35s","dmitry2",["Unable to locate Host IP addr","Found 0 possible subdomain(s)"]],
 
                 #42
                 ["open",0,proc_low," < 15s","nmaptelnet",["Failed to resolve"]],
@@ -1147,22 +1120,22 @@ tool_status = [
                 ["SUCCEED",0,proc_low," < 30s","webdav",["is not DAV enabled or not accessible."]],
 
                 #46
-                ["] [",0,proc_med," <  3m","nucleitech",["[ERR]","Could not resolve"]],
+                ["No vulnerabilities found",1,proc_low," < 15s","golism10",["Cannot resolve domain name","No vulnerabilities found"]],
 
                 #47
-                ["] [",0,proc_med," <  3m","nucleifileexp",["[ERR]","Could not resolve"]],
+                ["[+]",0,proc_med," <  2m","uniscan2",["Use of uninitialized value in unpack at"]],
 
                 #48
-                ["] [",0,proc_med," <  5m","nucleifuzz",["[ERR]","Could not resolve"]],
+                ["[+]",0,proc_med," <  5m","uniscan3",["Use of uninitialized value in unpack at"]],
 
                 #49
-                ["] [",0,proc_med," <  5m","nucleidos",["[ERR]","Could not resolve"]],
+                ["[+]",0,proc_med," <  9m","uniscan4",["Use of uninitialized value in unpack at"]],
 
                 #50
-                ["] [",0,proc_med," <  5m","nucleilfi",["[ERR]","Could not resolve"]],
+                ["[+]",0,proc_med," <  8m","uniscan5",["Use of uninitialized value in unpack at"]],
 
                 #51
-                ["] [",0,proc_med," <  5m","nucleixss",["[ERR]","Could not resolve"]],
+                ["[+]",0,proc_med," <  9m","uniscan6",["Use of uninitialized value in unpack at"]],
 
                 #52
                 ["0 item(s) reported",1,proc_low," < 35s","nikto1",["ERROR: Cannot resolve hostname","0 item(s) reported","No web server found","0 host(s) tested"]],
@@ -1252,16 +1225,7 @@ tool_status = [
                 ["X-XSS-Protection[1",1,proc_med," < 3m","whatweb",["Timed out","Socket error","X-XSS-Protection[1"]],
 
                 #81
-                ["No names were discovered",1,proc_med," < 15m","amass",["The system was unable to build the pool of resolvers"]],
-
-                #82
-                ["] [",0,proc_high," < 30m","nucleidefault",["[ERR]","Could not resolve"]],
-
-                #83
-                ["] [",0,proc_med," <  5m","nucleinet",["[ERR]","Could not resolve"]],
-
-                #84
-                ["] [",0,proc_med," <  5m","nucleipanels",["[ERR]","Could not resolve"]]
+                ["No names were discovered",1,proc_med," < 15m","amass",["The system was unable to build the pool of resolvers"]]
 
 
 
@@ -1370,16 +1334,12 @@ tools_fix = [
                     [50, "Attackers will be able to find the logs and error information generated by the application. They will also be able to see the status codes that was generated on the application. By combining all these information, the attacker will be able to leverage an attack.",
                             "By restricting access to the logger application from the outside world will be more than enough to mitigate this weakness."],
                     [51, "Cyber Criminals mainly target this service as it is very easier for them to perform a remote attack by running exploits. WannaCry Ransomware is one such example.",
-                            "Exposing SMB Service to the outside world is a bad idea, it is recommended to install latest patches for the service in order not to get compromised. The following resource provides a detailed information on SMB Hardening concepts. https://kb.iweb.com/hc/en-us/articles/115000274491-Securing-Windows-SMB-and-NetBios-NetBT-Services"],
-                    [52, "Subdomain takeover occurs when an attacker gains control over a subdomain of a target domain. This typically happens when DNS records (especially CNAMEs) point to services that have been deprovisioned, allowing an attacker to claim those services and serve malicious content under the target's domain.",
-                            "Remove dangling DNS records pointing to deprovisioned services. Regularly audit all DNS records and remove entries for services no longer in use. Use monitoring tools to detect abandoned subdomains. More information: https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/02-Configuration_and_Deployment_Management_Testing/10-Test_for_Subdomain_Takeover"],
-                    [53, "Exposed tokens, API keys, or credentials allow an attacker to gain unauthorized access to various services, APIs, and internal systems. This could lead to data breaches, service compromise, privilege escalation, or financial loss.",
-                            "Immediately rotate all exposed tokens and credentials. Implement a secrets management solution (e.g., HashiCorp Vault, AWS Secrets Manager). Never hardcode secrets in source code. Use environment variables or secret stores. Review access logs for unauthorized usage. More information: https://owasp.org/www-community/vulnerabilities/Use_of_hard-coded_password"]
+                            "Exposing SMB Service to the outside world is a bad idea, it is recommended to install latest patches for the service in order not to get compromised. The following resource provides a detailed information on SMB Hardening concepts. https://kb.iweb.com/hc/en-us/articles/115000274491-Securing-Windows-SMB-and-NetBios-NetBT-Services"]
             ]
 
 # Tool Set
 tools_precheck = [
-                    ["wapiti"], ["whatweb"], ["nmap"], ["nuclei"], ["host"], ["wget"], ["gobuster"], ["wafw00f"], ["subfinder"], ["davtest"], ["theHarvester"], ["xsser"], ["dnsrecon"],["fierce"], ["dnswalk"], ["whois"], ["sslyze"], ["lbd"], ["dnsenum"], ["nikto"], ["dnsmap"], ["amass"]
+                    ["wapiti"], ["whatweb"], ["nmap"], ["golismero"], ["host"], ["wget"], ["uniscan"], ["wafw00f"], ["dirb"], ["davtest"], ["theHarvester"], ["xsser"], ["dnsrecon"],["fierce"], ["dnswalk"], ["whois"], ["sslyze"], ["lbd"], ["golismero"], ["dnsenum"],["dmitry"], ["davtest"], ["nikto"], ["dnsmap"], ["amass"]
                  ]
 
 def get_parser():
